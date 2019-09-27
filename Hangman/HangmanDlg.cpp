@@ -77,9 +77,6 @@ BOOL CHangmanDlg::OnInitDialog()
 
 	// TODO: Add extra initialization here
 
-    // Dictionary should be loaded only once
-    LoadDictionary();
-
     // This should be done after LoadDictionary()
     InitializeGame(GetSafeHwnd());
 

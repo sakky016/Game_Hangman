@@ -21,7 +21,7 @@ typedef struct WordDictionary_tag
 //-----------------------------------------------------------------------
 void InitializeGame(HWND);
 void ContinueGame();
-void InitializeGuessLetters();
+void InitializeGameButtons();
 void LoadDictionary();
 bool IsLetterPresentInWord(const char letter);
 void OnGuessLetter(char letter);

@@ -87,15 +87,15 @@ void PrepareButtonMapping()
 }
 
 //--------------------------------------------------------------------------------------------
-// @name            : InitializeGuessLetters
+// @name            : InitializeGameButtons
 //
 // @description     : 
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
-void InitializeGuessLetters()
+void InitializeGameButtons()
 {
-    for (char ch = 'A'; ch < 'Z'; ch++)
+    for (char ch = 'A'; ch <= 'Z'; ch++)
     {
         // Mark all letters as available for guess
         g_guessedLetterMap[ch] = false;
@@ -103,6 +103,27 @@ void InitializeGuessLetters()
         // Enable all the buttons
         SetButtonState(ch, TRUE);
     }
+
+    HWND hwndShowHintButton = GetDlgItem(g_hwndDialog, btnShowHint);
+    EnableWindow(hwndShowHintButton, TRUE);
+
+    HWND hwndSkipButton = GetDlgItem(g_hwndDialog, btnSkip);
+    EnableWindow(hwndSkipButton, TRUE);
+}
+
+void DisableGame()
+{
+    for (char ch = 'A'; ch <= 'Z'; ch++)
+    {
+        // Disable all the letter buttons
+        SetButtonState(ch, FALSE);
+    }
+
+    HWND hwndShowHintButton = GetDlgItem(g_hwndDialog, btnShowHint);
+    EnableWindow(hwndShowHintButton, FALSE);
+
+    HWND hwndSkipButton = GetDlgItem(g_hwndDialog, btnSkip);
+    EnableWindow(hwndSkipButton, FALSE);
 }
 
 //--------------------------------------------------------------------------------------------
@@ -147,13 +168,14 @@ void InitializeGame(HWND hwnd)
     // Generate a seed for this game
     srand(time(0));
 
+    LoadDictionary();
     g_hwndDialog = hwnd;
 
     ResetGameVariables();
     ResetStats();
     UpdateStats();
     PrepareButtonMapping();
-    InitializeGuessLetters();
+    InitializeGameButtons();
 
     // Start the game now
     StartGameRound();
@@ -171,7 +193,7 @@ void ContinueGame()
     ResetGameVariables();
     UpdateStats();
     PrepareButtonMapping();
-    InitializeGuessLetters();
+    InitializeGameButtons();
 
     // Start the game now
     StartGameRound();
@@ -409,8 +431,8 @@ void StartGameRound()
     }
     else
     {
-        //SetDlgItemText(g_hwndDialog, lblGameWord, L"No new words found in database!");
         MessageBox(g_hwndDialog, L"No new words found in database!", L"Cannot start new game", 0);
+        DisableGame();
     }
 }
 
