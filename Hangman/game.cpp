@@ -1,8 +1,14 @@
 #include "pch.h"
-#include "game.h"
-#include<vector>
-#include<map>
 #include"resource.h"
+
+#include<algorithm>
+#include "game.h"
+#include<fstream>
+#include <sstream>
+#include<map>
+#include<vector>
+
+//#define TEST
 
 //-----------------------------------------------------------------------
 // Globals
@@ -25,34 +31,163 @@ std::string g_guessedWord;
 // To keep track of number of tries remaining.
 int g_triesRemaining = MAX_TRIES_ALLOWED;
 
-// Starting score
-int g_score = 0;
+// Total score
+int g_totalScore = 0;
+
+// Score of current game round
+int g_gameRoundScore = 0;
+
+// On each correct guess, this is the score that would increment
+// if hint was not used
+int g_scoreMultiplier = SCORE_MULTIPLIER;
 
 // To track if all letters of the game word were guessed correctly
 bool g_bGuessedAllLetters = false;
 
+// Flag to determine if hint was used for this game round
+bool g_bIsHintUsed = false;
+
+// Vector of high scores
+std::vector<long int> g_highScores;
+
+
+//--------------------------------------------------------------------------------------------
+// @name            : SetWindow
+//
+// @description     : Stores dialog window
+//
+// @returns         : Nothing
+//--------------------------------------------------------------------------------------------
+void SetWindow(HWND hwnd)
+{
+    g_hwndDialog = hwnd;
+}
+
 //--------------------------------------------------------------------------------------------
 // @name            : LoadDictionary
 //
-// @description     : 
+// @description     : Loads the words and meaning from the dictionary file into memory
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
 void LoadDictionary()
 {
-    WordDictionary_t word1{"HELLO", "A form of greeting"};
-    WordDictionary_t word2{"PLANET", "A heavenly body "};
-    WordDictionary_t word3{"MAGNIFICENT", "extraordinary"};
+    DictionaryLoadStart();
 
-    g_dictionaryVector.push_back(word1);
-    g_dictionaryVector.push_back(word2);
-    g_dictionaryVector.push_back(word3);
+    std::fstream dictionaryStream(DICTIONARY_FILE_NAME, std::ios::in);
+    unsigned long int wordCount = 0;
+    std::string line;
+
+    while (getline(dictionaryStream, line))
+    {
+        // Remove all the double-quotes (")
+        line.erase(remove(line.begin(), line.end(), '\"'), line.end());
+
+        // Dictionary file is a csv file having format
+        // <word>,<detail>,<meaning>
+        WordDictionary_t dictData;
+        size_t wordIndex = line.find(',');
+        if (wordIndex != std::string::npos)
+        {
+            dictData.word = line.substr(0, wordIndex);
+            std::transform(dictData.word.begin(), dictData.word.end(), dictData.word.begin(), ::toupper);
+
+            std::string meaningStr = line.substr(wordIndex + 1);
+            size_t meaningIndex = meaningStr.find(',');
+            if (meaningIndex != std::string::npos)
+            {
+                std::string wordInfo = meaningStr.substr(0, meaningIndex);
+                std::string wordMeaning = meaningStr.substr(meaningIndex + 1);
+                dictData.meaning = "[ " + wordInfo + " ] " + wordMeaning;
+            }
+        }
+
+        g_dictionaryVector.push_back(dictData);
+        wordCount++;
+
+#ifdef TEST
+        if (wordCount >= 100)
+        {
+            break;
+        }
+#endif
+    }// End of dictionary parsing
+
+    dictionaryStream.close();
+    DictionaryLoadEnd();
+}
+
+//--------------------------------------------------------------------------------------------
+// @name            : LoadHighScoresFromFile
+//
+// @description     : Loads high score table with values in the file
+//
+// @returns         : Nothing
+//--------------------------------------------------------------------------------------------
+void LoadHighScoresFromFile()
+{
+    std::fstream stream(HIGH_SCORE_FILE_NAME, std::ios::in);
+    std::string line;
+
+    while (getline(stream, line))
+    {
+        int score = std::stoi(line);
+        g_highScores.push_back(score);
+    }
+
+    stream.close();
+}
+
+//--------------------------------------------------------------------------------------------
+// @name            : WriteHighScoresToFile
+//
+// @description     : Updates the highscore file with current high score table
+//
+// @returns         : Nothing
+//--------------------------------------------------------------------------------------------
+void WriteHighScoresToFile()
+{
+    std::fstream stream(HIGH_SCORE_FILE_NAME, std::ios::out);
+
+    for (int i = 0; i < g_highScores.size(); i++)
+    {
+        stream << g_highScores[i];
+        stream << std::endl;
+    }
+
+    stream.close();
+}
+
+//--------------------------------------------------------------------------------------------
+// @name            : DictionaryLoadStart
+//
+// @description     : Called when the program starts parsing the dictionary file. It displays
+//                    a message on screen so that users know that some operation is going on
+//                    in background
+//
+// @returns         : Nothing
+//--------------------------------------------------------------------------------------------
+void DictionaryLoadStart()
+{
+    SetDlgItemText(g_hwndDialog, lblGameWord, L"  L O A D I N G   G A M E   D I C T I O N A R Y...");
+}
+
+//--------------------------------------------------------------------------------------------
+// @name            : DictionaryLoadEnd
+//
+// @description     : Called when the dictionary has been loaded
+//
+// @returns         : Nothing
+//--------------------------------------------------------------------------------------------
+void DictionaryLoadEnd()
+{
+    SetDlgItemText(g_hwndDialog, lblGameWord, L"  Game Dictionary loaded");
 }
 
 //--------------------------------------------------------------------------------------------
 // @name            : PrepareButtonMapping
 //
-// @description     : 
+// @description     : Creates a mapping of alphabet and the corresponding button ID.
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
@@ -87,13 +222,13 @@ void PrepareButtonMapping()
 }
 
 //--------------------------------------------------------------------------------------------
-// @name            : InitializeGameButtons
+// @name            : EnableGame
 //
-// @description     : 
+// @description     : Enables the game buttons
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
-void InitializeGameButtons()
+void EnableGame()
 {
     for (char ch = 'A'; ch <= 'Z'; ch++)
     {
@@ -109,8 +244,18 @@ void InitializeGameButtons()
 
     HWND hwndSkipButton = GetDlgItem(g_hwndDialog, btnSkip);
     EnableWindow(hwndSkipButton, TRUE);
+
+    // Clear Hint text
+    SetDlgItemText(g_hwndDialog, lblHint, L"");
 }
 
+//--------------------------------------------------------------------------------------------
+// @name            : DisableGame
+//
+// @description     : Disables the game buttons
+//
+// @returns         : Nothing
+//--------------------------------------------------------------------------------------------
 void DisableGame()
 {
     for (char ch = 'A'; ch <= 'Z'; ch++)
@@ -136,30 +281,18 @@ void DisableGame()
 void ResetGameVariables()
 {
     g_bGuessedAllLetters = false;
+    g_bIsHintUsed = false;
+    g_scoreMultiplier = SCORE_MULTIPLIER;
     g_triesRemaining = MAX_TRIES_ALLOWED;
     g_gameWordDict = {};
     g_guessedWord = "";
     g_guessedLetterMap.clear();
-    g_buttonMap.clear();
-}
-
-//--------------------------------------------------------------------------------------------
-// @name            : ResetStats
-//
-// @description     : These global variable values get reset only on new game. Should not be
-//                    called if continuing a game round.
-//
-// @returns         : Nothing
-//--------------------------------------------------------------------------------------------
-void ResetStats()
-{
-    g_score = 0;
 }
 
 //--------------------------------------------------------------------------------------------
 // @name            : InitializeGame
 //
-// @description     : 
+// @description     : Initializes the game module
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
@@ -167,42 +300,52 @@ void InitializeGame(HWND hwnd)
 {
     // Generate a seed for this game
     srand(time(0));
-
-    LoadDictionary();
     g_hwndDialog = hwnd;
-
-    ResetGameVariables();
-    ResetStats();
-    UpdateStats();
     PrepareButtonMapping();
-    InitializeGameButtons();
+    LoadHighScoresFromFile();
+    DisableGame();
 
-    // Start the game now
+    SetDlgItemText(g_hwndDialog, lblGameWord, L" Click on \" New Game \" to begin");
+}
+
+//--------------------------------------------------------------------------------------------
+// @name            : StartNewGame
+//
+// @description     : Called to start a new game. Dictionary is loaded.
+//
+// @returns         : Nothing
+//--------------------------------------------------------------------------------------------
+void StartNewGame()
+{
+    ResetGameVariables();
+    LoadDictionary();
+    EnableGame();
     StartGameRound();
+    UpdateStats();
 }
 
 //--------------------------------------------------------------------------------------------
 // @name            : ContinueGame
 //
-// @description     : 
+// @description     : Called to start a new game round
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
 void ContinueGame()
 {
     ResetGameVariables();
-    UpdateStats();
-    PrepareButtonMapping();
-    InitializeGameButtons();
+    EnableGame();
 
     // Start the game now
     StartGameRound();
+
+    UpdateStats();
 }
 
 //--------------------------------------------------------------------------------------------
 // @name            : GetButtonIdFromLetter
 //
-// @description     : 
+// @description     : Fetches button ID from the character
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
@@ -214,7 +357,7 @@ int GetButtonIdFromLetter(char letter)
 //--------------------------------------------------------------------------------------------
 // @name            : UseGuessLetter
 //
-// @description     : 
+// @description     : Marks the given letter as used.
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
@@ -226,7 +369,7 @@ void UseGuessLetter(char letter)
 //--------------------------------------------------------------------------------------------
 // @name            : SetButtonState
 //
-// @description     : 
+// @description     : enables/disables a alphabet button
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
@@ -240,20 +383,55 @@ void SetButtonState(char letter, BOOL state)
 //--------------------------------------------------------------------------------------------
 // @name            : UpdateStats
 //
-// @description     : 
+// @description     : Updates the values in the different text fields of the dialog after 
+//                    each user action.
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
 void UpdateStats()
 {
-    CString sScore;
-    sScore.Format(L" %d ", g_score);
+    // High scores
+    // Sort the vector
+    sort(g_highScores.begin(), g_highScores.end(), std::greater<>());
+    SendDlgItemMessage(g_hwndDialog, lstHighScore, LB_RESETCONTENT, 0, 0);
 
+    for (size_t i = 0; i < g_highScores.size(); i++)
+    {
+        CString sHighScore;
+        sHighScore.Format(L"%-2d) %-5d ", i+1, g_highScores[i]);
+        SendDlgItemMessage(g_hwndDialog, lstHighScore, LB_ADDSTRING, 0, (LPARAM)(LPCTSTR)sHighScore);
+    }
+
+    // Score
+    CString sScore;
+    sScore.Format(L" %d ", g_totalScore);
+    SetDlgItemText(g_hwndDialog, lblScoreValue, sScore);
+
+    // Tries remaining
     CString sTriesRemaining;
     sTriesRemaining.Format(L" %d ", g_triesRemaining);
-    
-    SetDlgItemText(g_hwndDialog, lblScoreValue, sScore);
     SetDlgItemText(g_hwndDialog, lblTriesRemainingValue, sTriesRemaining);
+
+    // Score Multiplier
+    CString sScoreMultiplier;
+    sScoreMultiplier.Format(L" %d ", g_scoreMultiplier);
+    SetDlgItemText(g_hwndDialog, lblScoreMultiplier, sScoreMultiplier);
+
+    // Max points that can be scored in this round
+    int scoreable = 0;
+    for (size_t i = 0; i < g_guessedWord.size(); i++)
+    {
+        if (g_guessedWord[i] == CONCEALED_LETTER)
+        {
+            scoreable++;
+        }
+    }
+
+    scoreable = scoreable * g_scoreMultiplier;
+
+    CString sScoreable;
+    sScoreable.Format(L" %d ", scoreable);
+    SetDlgItemText(g_hwndDialog, lblScoreable, sScoreable);
 }
 
 //--------------------------------------------------------------------------------------------
@@ -282,7 +460,8 @@ bool IsGameOver()
 //--------------------------------------------------------------------------------------------
 // @name            : OnGuessLetter
 //
-// @description     : 
+// @description     : Executed whenever a user presses any of the alphabet buttons. Checks
+//                    if selected character is present in the game word or not.
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
@@ -294,13 +473,13 @@ void OnGuessLetter(char letter)
     if (IsLetterPresentInWord(letter))
     {
         // Correct guess
-        for (int i = 0; i < g_gameWordDict.word.size(); i++)
+        for (size_t i = 0; i < g_gameWordDict.word.size(); i++)
         {
             // Reveal all the guessed letters present in the word
             if (g_gameWordDict.word[i] == letter)
             {
                 g_guessedWord[i] = letter;
-                g_score++;
+                g_gameRoundScore += g_scoreMultiplier;
             }
         }
 
@@ -323,17 +502,30 @@ void OnGuessLetter(char letter)
 //--------------------------------------------------------------------------------------------
 // @name            : GetRandomWord
 //
-// @description     : 
+// @description     : Fetches a random word from the dictionary. Once a valid word has been
+//                    selected for the game round, it is removed from the dictionary so as 
+//                    to avoid repetition.
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
 WordDictionary_t GetRandomWord()
 {
-    int index = rand() % g_dictionaryVector.size();
-    WordDictionary_t word =  g_dictionaryVector[index];
+    bool bRequiredWordFetched = false;
+    WordDictionary_t word{};
 
-    // Remove this word from dictionary.
-    g_dictionaryVector.erase(g_dictionaryVector.begin() + index);
+    while (!bRequiredWordFetched)
+    {
+        int index = rand() % g_dictionaryVector.size();
+        word = g_dictionaryVector[index];
+
+        if (word.word.size() >= MIN_WORD_LENGTH)
+        {
+            bRequiredWordFetched = true;
+
+            // Remove this word from dictionary.
+            g_dictionaryVector.erase(g_dictionaryVector.begin() + index);
+        }
+    }
 
     return word;
 }
@@ -354,7 +546,7 @@ bool IsLetterPresentInWord(const char letter)
 //--------------------------------------------------------------------------------------------
 // @name            : IsVowel
 //
-// @description     : 
+// @description     : Checks if a character is vowel
 //
 // @returns         : true/false
 //--------------------------------------------------------------------------------------------
@@ -366,17 +558,37 @@ bool IsVowel(char letter)
 //--------------------------------------------------------------------------------------------
 // @name            : ConcealLettersInWord
 //
-// @description     : 
+// @description     : Hide some of the letters as per parameter PERCENT_LETTERS_TO_REVEAL
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
 void ConcealLettersInWord()
 {
-    for (int i = 0; i < g_guessedWord.size(); i++)
+    int lettersToHide = (float(100 - (PERCENT_LETTERS_TO_REVEAL % 100)) / 100) * g_guessedWord.size();
+    int hiddenLetters = 0;
+
+    // Hide random letters 
+    while (hiddenLetters < lettersToHide)
     {
-        if (!IsVowel(g_guessedWord[i]))
+        int indexToHide = rand() % g_guessedWord.size();
+        char ch = g_guessedWord[indexToHide];
+
+        // If not already hidden
+        if (ch != CONCEALED_LETTER)
         {
-            g_guessedWord[i] = '-';
+            // Check if any other index has same letter
+            for (size_t i = 0; i < g_guessedWord.size(); i++)
+            {
+                if (g_guessedWord[i] == ch)
+                {
+                    g_guessedWord[i] = CONCEALED_LETTER;
+                    hiddenLetters++;
+                    if (hiddenLetters >= lettersToHide)
+                    {
+                        break;
+                    }
+                }
+            }
         }
     }
 }
@@ -384,7 +596,7 @@ void ConcealLettersInWord()
 //--------------------------------------------------------------------------------------------
 // @name            : ShowGuessedWord
 //
-// @description     : 
+// @description     : Displays the game round word
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
@@ -393,7 +605,7 @@ void ShowGuessedWord()
     std::string textToDisplay;
 
     // Do some modifications so that it looks better on display
-    for (int i = 0; i < g_guessedWord.size(); i++)
+    for (size_t i = 0; i < g_guessedWord.size(); i++)
     {
         textToDisplay.push_back(' ');
         textToDisplay.push_back(g_guessedWord[i]);
@@ -403,19 +615,65 @@ void ShowGuessedWord()
     SetDlgItemText(g_hwndDialog, lblGameWord, sTextToDisplay);
 }
 
+//--------------------------------------------------------------------------------------------
+// @name            : ShowHint
+//
+// @description     : Displays hint for the current word. Once used, it will reduce the points
+//                    that can be scored in the current game round
+//
+// @returns         : Nothing
+//--------------------------------------------------------------------------------------------
 void ShowHint()
 {
     CString sTextToDisplay(g_gameWordDict.meaning.c_str());
     SetDlgItemText(g_hwndDialog, lblHint, sTextToDisplay);
+    
+    // Disable the Hint button
+    HWND hwndShowHintButton = GetDlgItem(g_hwndDialog, btnShowHint);
+    EnableWindow(hwndShowHintButton, FALSE);
 
-    //HWND hwndButton = GetDlgItem(g_hwndDialog, btnShowHint);
-    //EnableWindow(hwndButton, FALSE);
+    // Update game variables
+    g_bIsHintUsed = true;
+    g_scoreMultiplier = g_scoreMultiplier / 2;
+
+    UpdateStats();
+}
+
+//--------------------------------------------------------------------------------------------
+// @name            : UpdateHighScore
+//
+// @description     : Maintains and updates the high score table. Writes down the data to file.
+//
+// @returns         : Nothing
+//--------------------------------------------------------------------------------------------
+void UpdateHighScore()
+{
+    if (g_totalScore > 0)
+    {
+        if (g_highScores.size() >= MAX_STORED_HIGHSCORES)
+        {
+            // If we have reached MAX_STORED_HIGHSCORES, then replace the least value
+            // of score
+            auto it_minElement = std::min_element(g_highScores.begin(), g_highScores.end());
+            if (g_totalScore > * it_minElement)
+            {
+                *it_minElement = g_totalScore;
+            }
+        }
+        else
+        {
+            g_highScores.push_back(g_totalScore);
+        }
+
+        // Write the updated high scores to file
+        WriteHighScoresToFile();
+    }
 }
 
 //--------------------------------------------------------------------------------------------
 // @name            : StartGameRound
 //
-// @description     : 
+// @description     : Called at the beginning of each game round
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
@@ -423,6 +681,7 @@ void StartGameRound()
 {
     if (g_dictionaryVector.size() > 0)
     {
+        g_gameRoundScore = 0;
         g_gameWordDict = GetRandomWord();
         std::string originalWord = g_gameWordDict.word;
         g_guessedWord = originalWord;
@@ -439,20 +698,47 @@ void StartGameRound()
 //--------------------------------------------------------------------------------------------
 // @name            : EndGameRound
 //
-// @description     : 
+// @description     : Called when game is over - either on winning or losing
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
 void EndGameRound()
 {
-    CString sTitle(L"Tries exhausted");
-    CString sMsg(L"Do you wish to try a new word?");
+    CString sTitle(L"Game Over");
+    CString sMsg;
+    CString sSolution(g_gameWordDict.word.c_str());
+    sMsg = L"Tries exhausted. Correct word was [ " + sSolution + L" ] \nDo you wish to play again?";
+
+
     if (g_bGuessedAllLetters)
     {
-        sTitle = L"Congratulations!";
-        sMsg = L"You guessed all the letters. Do you wish to continue?";
-    }
+        // On winning game round
+        if (g_triesRemaining == MAX_TRIES_ALLOWED)
+        {
+            g_gameRoundScore *= SCORE_BONUS_FOR_PERFECT_GUESS;
+            sTitle = L"Perfect!";
+            sMsg.Format(L"You found all the letters without any incorrect guess and won %d points. \n\nDo you wish to continue?", g_gameRoundScore);
+        }
+        else
+        {
+            sTitle = L"Congratulations!";
+            sMsg.Format(L"You guessed all the letters and won %d points. \n\nDo you wish to continue?", g_gameRoundScore);
+        }
 
+        g_totalScore += g_gameRoundScore;
+    }
+    else
+    {
+        // Since we could not guess the word, this round's score 
+        // should not add up to the total score.
+        g_gameRoundScore = 0;
+        
+        // Update the high score and write it down to file
+        UpdateHighScore();
+
+        // Reset the total score to 0 after High score table has been updated
+        g_totalScore = 0;
+    }
 
     int choice = MessageBox(g_hwndDialog, sMsg, sTitle, MB_YESNO | MB_DEFBUTTON1);
     if (choice == IDYES)
@@ -461,6 +747,9 @@ void EndGameRound()
     }
     else
     {
-        SetDlgItemText(g_hwndDialog, lblGameWord, L"Thank you for playing!");
+        SetDlgItemText(g_hwndDialog, lblGameWord, L" ** Thank you for playing ** ");
+        SetDlgItemText(g_hwndDialog, lblHint, L"");
+        DisableGame();
+        ResetGameVariables();
     }
 }

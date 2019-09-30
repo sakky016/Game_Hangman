@@ -14,6 +14,7 @@
 #endif
 
 
+static bool g_bFirstRun = true;
 // CHangmanDlg dialog
 
 
@@ -281,10 +282,19 @@ void CHangmanDlg::OnBnClickedbtnp()
 
 void CHangmanDlg::OnBnClickedbtnnewgame()
 {
-    int choice = MessageBox(L"Are you sure you want to start a new game? Scores will be reset", L"New Game", MB_YESNO | MB_DEFBUTTON2);
-    if (choice == IDYES)
+    if (g_bFirstRun)
     {
-        InitializeGame(GetSafeHwnd());
+        StartNewGame();
+        g_bFirstRun = false;
+    }
+    else
+    {
+        int choice = MessageBox(L"Are you sure you want to start a new game?\n\n\
+                                Scores will be reset and word dictionary will be reloaded", L"New Game", MB_YESNO | MB_DEFBUTTON2);
+        if (choice == IDYES)
+        {
+            StartNewGame();
+        }
     }
 }
 

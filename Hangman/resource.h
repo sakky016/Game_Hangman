@@ -19,6 +19,7 @@
 #define lblHint                         1012
 #define lblGameWord                     1013
 #define lblScore                        1014
+#define lblTriesRemaining2              1015
 #define btnSkip                         1016
 #define btnNewGame                      1017
 #define lblGameBanner                   1018
@@ -32,6 +33,11 @@
 #define lblTriesRemainingValue          1026
 #define btnShowHint                     1027
 #define IDC_EDIT1                       1028
+#define lblScoreMultiplier              1028
+#define lblTriesRemaining3              1029
+#define lblScoreable                    1030
+#define IDC_LIST1                       1031
+#define lstHighScore                    1031
 #define btnQ                            1032
 #define btnW                            1033
 #define btnE                            1034
@@ -49,7 +55,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1029
+#define _APS_NEXT_CONTROL_VALUE         1032
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
