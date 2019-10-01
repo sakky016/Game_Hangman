@@ -289,8 +289,7 @@ void CHangmanDlg::OnBnClickedbtnnewgame()
     }
     else
     {
-        int choice = MessageBox(L"Are you sure you want to start a new game?\n\n\
-                                Scores will be reset and word dictionary will be reloaded", L"New Game", MB_YESNO | MB_DEFBUTTON2);
+        int choice = MessageBox(L"Are you sure you want to start a new game?\n\n\Scores will be reset and word dictionary will be reloaded", L"New Game", MB_YESNO | MB_DEFBUTTON2);
         if (choice == IDYES)
         {
             StartNewGame();

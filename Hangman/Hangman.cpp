@@ -4,6 +4,7 @@
 
 #include "pch.h"
 #include "framework.h"
+#include"game.h"
 #include "Hangman.h"
 #include "HangmanDlg.h"
 
@@ -81,8 +82,8 @@ BOOL CHangmanApp::InitInstance()
 	}
 	else if (nResponse == IDCANCEL)
 	{
-		// TODO: Place code here to handle when the dialog is
-		//  dismissed with Cancel
+        // Update the high score and write it down to file
+        UpdateHighScore();
 	}
 	else if (nResponse == -1)
 	{

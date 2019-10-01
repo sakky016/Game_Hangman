@@ -16,7 +16,10 @@
  // This should not be cleared as long as game is running
 std::vector< WordDictionary_t> g_dictionaryVector; 
 
+// Map to maintain if a letter was used in the current game round
 std::map<char, bool> g_guessedLetterMap;
+
+// Map of letter and corresponding button ID
 std::map<char, int> g_buttonMap;
 
 // HWND of dialog
@@ -317,6 +320,9 @@ void InitializeGame(HWND hwnd)
 //--------------------------------------------------------------------------------------------
 void StartNewGame()
 {
+    // Reset total score
+    g_totalScore = 0;
+
     ResetGameVariables();
     LoadDictionary();
     EnableGame();
@@ -391,14 +397,12 @@ void SetButtonState(char letter, BOOL state)
 void UpdateStats()
 {
     // High scores
-    // Sort the vector
-    sort(g_highScores.begin(), g_highScores.end(), std::greater<>());
     SendDlgItemMessage(g_hwndDialog, lstHighScore, LB_RESETCONTENT, 0, 0);
 
     for (size_t i = 0; i < g_highScores.size(); i++)
     {
         CString sHighScore;
-        sHighScore.Format(L"%-2d) %-5d ", i+1, g_highScores[i]);
+        sHighScore.Format(L"%3d) %-5d ", i+1, g_highScores[i]);
         SendDlgItemMessage(g_hwndDialog, lstHighScore, LB_ADDSTRING, 0, (LPARAM)(LPCTSTR)sHighScore);
     }
 
@@ -571,24 +575,33 @@ void ConcealLettersInWord()
     while (hiddenLetters < lettersToHide)
     {
         int indexToHide = rand() % g_guessedWord.size();
-        char ch = g_guessedWord[indexToHide];
+        char letterToHide = g_guessedWord[indexToHide];
 
         // If not already hidden
-        if (ch != CONCEALED_LETTER)
+        if (letterToHide != CONCEALED_LETTER)
         {
             // Check if any other index has same letter
             for (size_t i = 0; i < g_guessedWord.size(); i++)
             {
-                if (g_guessedWord[i] == ch)
+                if (g_guessedWord[i] == letterToHide)
                 {
                     g_guessedWord[i] = CONCEALED_LETTER;
                     hiddenLetters++;
-                    if (hiddenLetters >= lettersToHide)
-                    {
-                        break;
-                    }
+                    //if (hiddenLetters >= lettersToHide)
+                    //{
+                    //    break;
+                    //}
                 }
             }
+        }
+    }
+
+    // Disable buttons that are already revealed
+    for (size_t i = 0; i < g_guessedWord.size(); i++)
+    {
+        if (g_guessedWord[i] != CONCEALED_LETTER)
+        {
+            SetButtonState(g_guessedWord[i], FALSE);
         }
     }
 }
@@ -665,6 +678,9 @@ void UpdateHighScore()
             g_highScores.push_back(g_totalScore);
         }
 
+        // Sort the vector
+        sort(g_highScores.begin(), g_highScores.end(), std::greater<>());
+
         // Write the updated high scores to file
         WriteHighScoresToFile();
     }
@@ -691,6 +707,9 @@ void StartGameRound()
     else
     {
         MessageBox(g_hwndDialog, L"No new words found in database!", L"Cannot start new game", 0);
+        
+        // Update the high score and write it down to file
+        UpdateHighScore();
         DisableGame();
     }
 }
@@ -715,7 +734,7 @@ void EndGameRound()
         // On winning game round
         if (g_triesRemaining == MAX_TRIES_ALLOWED)
         {
-            g_gameRoundScore *= SCORE_BONUS_FOR_PERFECT_GUESS;
+            g_gameRoundScore += SCORE_BONUS_FOR_PERFECT_GUESS;
             sTitle = L"Perfect!";
             sMsg.Format(L"You found all the letters without any incorrect guess and won %d points. \n\nDo you wish to continue?", g_gameRoundScore);
         }
