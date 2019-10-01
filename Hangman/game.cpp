@@ -73,7 +73,7 @@ void SetWindow(HWND hwnd)
 //
 // @returns         : Nothing
 //--------------------------------------------------------------------------------------------
-void LoadDictionary()
+bool LoadDictionary()
 {
     DictionaryLoadStart();
 
@@ -118,6 +118,8 @@ void LoadDictionary()
 
     dictionaryStream.close();
     DictionaryLoadEnd();
+
+    return (g_dictionaryVector.size() > 0);
 }
 
 //--------------------------------------------------------------------------------------------
@@ -184,7 +186,14 @@ void DictionaryLoadStart()
 //--------------------------------------------------------------------------------------------
 void DictionaryLoadEnd()
 {
-    SetDlgItemText(g_hwndDialog, lblGameWord, L"  Game Dictionary loaded");
+    if (g_dictionaryVector.size() > 0)
+    {
+        SetDlgItemText(g_hwndDialog, lblGameWord, L"  Game Dictionary loaded");
+    }
+    else
+    {
+        SetDlgItemText(g_hwndDialog, lblGameWord, L"  Failed to load Game dictionary");
+    }
 }
 
 //--------------------------------------------------------------------------------------------
@@ -324,10 +333,19 @@ void StartNewGame()
     g_totalScore = 0;
 
     ResetGameVariables();
-    LoadDictionary();
-    EnableGame();
-    StartGameRound();
-    UpdateStats();
+    bool bIsWordDictionaryLoaded = LoadDictionary();
+    if (bIsWordDictionaryLoaded)
+    {
+        EnableGame();
+        StartGameRound();
+        UpdateStats();
+    }
+    else
+    {
+        MessageBox(g_hwndDialog, L"Dictionary Load failed!", L"Cannot start new game", 0);
+        DisableGame();
+    }
+
 }
 
 //--------------------------------------------------------------------------------------------

@@ -34,7 +34,7 @@ void DictionaryLoadStart();
 void DictionaryLoadEnd();
 void SetWindow(HWND hwnd);
 void InitializeGameButtons();
-void LoadDictionary();
+bool LoadDictionary();
 bool IsLetterPresentInWord(const char letter);
 void OnGuessLetter(char letter);
 void ShowGuessedWord();
